@@ -16,35 +16,31 @@ Reverse e1 = reverse e1
 ShiftL (x:xs) = xs++[x]
 Head e1 = head e1
 Tail e1 = tail e1
-Last e = last e
-Init e = init e
 Union e1 e2 = union e1 e2
-Sort e = sort e
+Sort e1 = sort e1
 Length e1 = length e1
 Maximum e1 = maximum e1
 Minimum e1 = minimum e1
 Product e = product e
 
-Should we pack length, maximum, minimum, product in singleton List?
-Also, I changed Head such that it takes care of an empty List. Let me know if it looks right.
-
-Also, I did not understand what you were trying to do with shiftL? Were you trying to select a pivot and shift the elements around it? Like [1,2,3,4] shiftL around 2 so that would be [3,4,2,1]?
 ShiftL seems bad... swap?
-And if it is swap? How would you want it to work? If you could give an example?
+
+Is there an inbuilt function called shiftL somewhere? Because I could not find in Data.List. Swap can be implemented. On it.
+Also Trying to make foldl work.
+Let me know what other 'common' operations we are going to need.
 -}
 
 data E = Plus E E
        | Reverse E
        | Head E
        | Tail E
-       | Last E
-       | Init E
        | Union E E
        | Sort E
        | Length E
        | Maximum E
        | Minimum E
        | Product E
+	   | Foldl E E
 --       | ShiftL E
        | Const [Int]
        deriving (Typeable,Data,Eq,Show)
@@ -53,19 +49,12 @@ eval :: E -> Maybe [Int]
 eval (Const c)     = Just c
 eval (Plus e1 e2)  = liftM2 (++) (eval e1) (eval e2)
 eval (Reverse e)   = liftM (reverse) (eval e)
---eval (Head e)      = liftM ((:[]) . head) (eval e)
-eval (Head e)      = do xs <- eval e
-                        case xs of
-                            x:_ -> return [x]
-                            [ ] -> Nothing							
+eval (Head e)      = liftM ((:[]) . head) (eval e)
+--eval (Length e)    = liftM ((:[]) . length) (eval e)
 eval (Tail e) | ok        = t
               | otherwise = Nothing
     where t = liftM (tail) (eval e)
           ok = t /= Just []
-eval (Last e)      = liftM ((:[]) . last) (eval e)
-eval (Init e)      = liftM (init) (eval e)
---eval (Length e)    = liftM ((:[]) . length) (eval e)
---eval (Product e)   = liftM ((:[]) . product) (eval e)
 --eval (ShiftL e)    = liftM (shiftL) (eval e)
 --    where shiftL (x:xs) = xs ++ [x]
 eval (Union e1 e2) = liftM2 (union) (eval e1) (eval e2)
