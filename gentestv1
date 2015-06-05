@@ -82,15 +82,16 @@ eval2 (Minimum e) = liftM (minimum) (eval e)
 instance GenProg (Rand StdGen) E where
   terminal    = liftM (Const . (:[])) $ getRandomR (0,9)
   nonterminal = do
-    r <- getRandomR (0,7)
-    [liftM2 Plus terminal terminal,
-     liftM Reverse terminal,
-     liftM Head terminal,
-     liftM Tail terminal,
-	 liftM Last terminal,
-	 liftM Init terminal,
-     liftM2 Union terminal terminal,
-	 liftM Sort terminal] !! r
+    let options = [liftM2 Plus terminal terminal,
+		   liftM Reverse terminal,
+		   liftM Head terminal,
+		   liftM Tail terminal,
+		   liftM Last terminal,
+		   liftM Init terminal,
+		   liftM2 Union terminal terminal,
+		   liftM Sort terminal]
+    r <- getRandomR (0,length options -1)
+    options !! r
 
 myFitness :: [Int] -> E -> Double
 myFitness n e = error + size
