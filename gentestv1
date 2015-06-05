@@ -45,7 +45,7 @@ data E = Plus E E
        | Maximum E
        | Minimum E
        | Product E
---       | ShiftL E
+--     | ShiftL E
        | Const [Int]
        deriving (Typeable,Data,Eq,Show)
 
@@ -82,11 +82,15 @@ eval2 (Minimum e) = liftM (minimum) (eval e)
 instance GenProg (Rand StdGen) E where
   terminal    = liftM (Const . (:[])) $ getRandomR (0,9)
   nonterminal = do
-    r <- getRandomR (0,3)
+    r <- getRandomR (0,7)
     [liftM2 Plus terminal terminal,
      liftM Reverse terminal,
      liftM Head terminal,
-     liftM Tail terminal] !! r
+     liftM Tail terminal,
+	 liftM Last terminal,
+	 liftM Init terminal,
+     liftM2 Union terminal terminal,
+	 liftM Sort terminal] !! r
 
 myFitness :: [Int] -> E -> Double
 myFitness n e = error + size
