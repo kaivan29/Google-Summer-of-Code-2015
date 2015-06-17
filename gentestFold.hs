@@ -21,9 +21,13 @@ data E = Base Int
        | Plus E E
        | Minus E E
        | Times E E
-	     | Foldl E E E --here it is
+       | Greater E E
+       | Less E E
+       | GreaterOrEqual E E
+       | LessOrEqual E E
+	   | Foldl E E E --here it is
        | Const Int
-	     | Cons [Int]
+	   | Cons [Int]
        deriving (Typeable,Data,Eq,Show)
 	   
 	   
@@ -49,9 +53,22 @@ eval (Base c)
 eval (Plus n e)  = apply (+) (evalc n) (eval e)
 eval (Minus n e) = apply (-) (evalc n) (eval e)
 eval (Times n e) = apply (*) (evalc n) (eval e)
+eval (Greater n e) = apply1 (>) (evalc n) (eval e)
+eval (Less n e) = apply1 (<) (evalc n) (eval e)
+eval (GreaterOrEqual n e) = apply1 (>=) (evalc n) (eval e)
+eval (LessOrEqual n e) = apply1 (<=) (evalc n) (eval e)
+
 
 apply :: (Int -> Int -> Int) -> Int -> (Int -> Int -> Int) -> (Int -> Int -> Int)
 apply p n q = (\x y -> p n (q x y))
+
+--Using greater in if else. Example (if 2 '+/-/*' x > y then x '+/-/*' y else x)
+apply1 :: (Int -> Int -> Bool) -> Int -> (Int -> Int -> Int) -> (Int -> Int -> Int)
+apply1 p n q = (\x y -> if (p (q n x) y) then (q x y) else x)
+
+-- foldl (\a b -> if 2*b > a then a + b else a) 1 [1..10]
+-- foldl (\a b -> (a * b) + 9) 1 [1..10]
+-- Plus(Const 9) (Base 3)
 
 instance GenProg (Rand StdGen) E where
   terminal    = liftM Base $ getRandomR (1,3)
@@ -70,9 +87,9 @@ myFitness (n,n') e = error + size
         fval = foldeval e
 
 foldeval :: E -> Int
-foldeval e = foldl fn 1 [1..3]
+foldeval e = foldl fn 5 [1..3]
     where fn = eval e
-
+	
 --Sample run  foldevol (Foldl (Plus (Const 9)(Base 1)) (Const 2) (Cons [1,2,3])).Works!!	
 foldevol :: E -> Int
 foldevol e = evalb e
