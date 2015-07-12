@@ -18,30 +18,43 @@ class IsGenExp t where
       mutate :: (MonadRandom m) => t -> m t
       crossOver :: (MonadRandom m) => t -> t -> m t
       randomGen :: (MonadRandom m) => m t
+      eval :: t -> t
+      getType :: t -> String
+      getApplicableTypes :: t -> [String]
 	  
 data GenExp = forall t . IsGenExp t => GenExp t
 
--- ∃ t. (t, t → t, t → String)
+data IntExp = IntExp Int deriving (Typeable, Data, Show, Eq)
+data FloatExp = FloatExp Float
+data ListExp = ListExp [GenExp]
+data ArithExp = Add GenExp GenExp | Sub GenExp GenExp | Mul GenExp GenExp
+data CompExp = Eq GenExp GenExp | Lt GenExp GenExp | Gt GenExp GenExp
 
-data Fox = forall a b. (Show b, Eq b) => Fox a a (a -> a -> b) (b -> String)
+instance Random IntExp
+instance Num IntExp
 
-boxc :: Int -> Int -> String -> Fox
-boxc n1 n2 x
-  | x == "add" = Fox n1 n2 (+) show
-  | x == "sub" = Fox n1 n2 (-) show
-  | x == "times" = Fox n1 n2 (*) show
-  | x == "eq" = Fox n1 n2 (==) show
-  | x == "gt" = Fox n1 n2 (>) show
-  | x == "lt" = Fox n1 n2 (<) show
+instance Random FloatExp
+instance Num FloatExp
 
-fapply :: Fox -> String
-fapply (Fox x y f p) = p (f x y)
+instance Random ListExp
+instance Num ListExp
 
-t1 = fapply (boxc 2 2 "eq")
-t2 = fapply (boxc 4 5 "add")
---t2 = fapply (boxc read(fapply (boxc 4 5 "times")) read (fapply(boxc 5 6 "sub")) "add")
+--I have just generated some random numbers. Do we want something specific?
 
---lets try this
+instance IsGenExp IntExp where
+   randomGen = getRandomR (0,50)
+   eval (IntExp num) = IntExp num --this seems about right?
+
+instance IsGenExp FloatExp where
+   randomGen = getRandomR (0,50)
+   eval (FloatExp num) = FloatExp num
+   
+instance IsGenExp ListExp where
+   randomGen = getRandomR (0,50)
+   --eval what should ListExp evaluate to?
+
+
+{-
 data SBox = forall a. Show a => SBox a
 
 boxes :: [SBox]
@@ -53,28 +66,7 @@ showBox (SBox a) = show a
 main :: IO ()
 main = mapM_ (putStrLn . showBox) boxes
 
-{-
-instance GenProg (Rand StdGen) Fox where
-  terminal    = liftM Base $ getRandomR (1,3)
-  nonterminal = do
-    let num = liftM Const $ getRandomR (1,9)
-    let options = [liftM2 Plus num terminal,
-                   liftM2 Minus num terminal,
-                   liftM2 Times num terminal]
-    r <- getRandomR (0,length options - 1)
-    options !! r
-	 
-myFitness :: (Int,Double) -> E -> Double
-myFitness (n,n') e = error + size
-  where error = realToFrac $ (abs . (n-)) (if fval < -(10^6) then maxBound else fval) 
-        size  = n' * (realToFrac $ nodes e) / 100
-        fval = foldeval e
-
-foldeval :: E -> Int
-foldeval e = foldl fn 5 [1..3]
-    where fn = eval e
-
-{- data Box = forall a. Box a (a -> a) (a -> String)
+data Box = forall a. Box a (a -> a) (a -> String)
 
 boxa :: Box
 boxa = Box 1 negate show
@@ -83,9 +75,11 @@ boxb :: Box
 boxb = Box "foo" reverse show 
 -- ∃ t. Show t => t
 
--- ()
--- 2
--- "foo"
  newtype SBox a = SBox a; elem :: (Eq a) => a -> SBox a -> Bool; elem x (SBox y) = x == y
--}
+
+Random instance of Int 
+ https://hackage.haskell.org/package/random-1.0.0.2/docs/src/System-Random.html
+
+Minimal complete definition: randomR and random." -- So you'll have to define a Random instance for your type, and provide definitions for random and randomR in the definition.
+Your IntExp is just a wrapper around Int, so all you have to do is use the Random instance for Int and wrap the results in your IntExp constructor. 
 -}
