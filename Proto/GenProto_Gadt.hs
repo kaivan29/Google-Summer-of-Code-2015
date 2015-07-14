@@ -3,10 +3,20 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-#LANGUAGE TemplateHaskell #-}
 
 import Control.Monad.Random
 import Control.Monad
 import Data.List
+import Control.Monad.State
+import Control.Monad.State.Lazy
+import Control.Monad.Trans.Class
+
+--I have infinite length tree forming up because of the List. Can I make
+--it more constraint as to what will the nodes of the List? Also, keeping
+--a check on the number of nodes using runStateT
+
+--runStateT (do { put "100 nodes"; n <- lift $ getRandomR (0, 10); return n }) 
 
 data Expr :: * -> * where
     I :: Int -> Expr Int
@@ -22,6 +32,19 @@ data Expr :: * -> * where
     Sum :: Expr [Int] -> Expr [Int] -> Expr Int
 
 deriving instance Show (Expr a)
+
+--Can I have eval defined in such a way that it would also take List
+-- and perform the operations on it?
+eval :: Expr a -> a
+eval (I n) = n
+eval (B n) = n
+eval (Plus e1 e2) = (eval e1) + (eval e2)
+eval (Minus e1 e2) = (eval e1) - (eval e2)
+eval (Times e1 e2) = (eval e1) * (eval e2)
+eval (Eq e1 e2) = (eval e1) == (eval e2)
+eval (Gt e1 e2) = (eval e1) > (eval e2)
+eval (Lt e1 e2) = (eval e1) < (eval e2)
+eval (If s e1 e2) = if (eval s) then (eval e1) else (eval e2)
 
 data ExprW = EI (Expr Int) | EB (Expr Bool) | EL (Expr [Int]) deriving Show
 
