@@ -13,6 +13,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 
+import Control.Monad.Random
+import Control.Monad
+import Control.Monad.State
+
 data Indexor :: [k] -> k -> * where
     IZ :: Indexor (k ': ks) k
     IS :: Indexor (k ': ks) k -> Indexor (j ': k ': ks) k
@@ -28,6 +32,8 @@ data Expr :: [*] -> * -> * where
     Const  :: Expr vs a -> Expr (b ': vs) a
     Foldr  :: Expr (a ': b ': vs) b -> Expr vs b -> Expr vs [a] -> Expr vs b
 
+deriving instance Show (Expr vs a)
+
 data Op1 :: * -> * where
     Abs :: Op1 Int
     Signum :: Op1 Int
@@ -41,11 +47,16 @@ data Op2 :: * -> * -> * where
     And    :: Op2 Bool Bool
     Or    :: Op2 Bool Bool
 
+deriving instance Show (Op1 a)
+deriving instance Show (Op2 a b)
+
 deriving instance Show (Indexor ks k)
 -- deriving instance Show a => Show (Expr vs a)
 
 main :: IO ()
-main = print . eval $ Foldr (V IZ + V (IS IZ)) (I 0) (List [I 1, I 2, I 3])
+main = print . eval $ Foldr (V IZ + V (IS IZ)) (I 0) (List [I 1, I 2, I 3]) -- (\x -> \y -> x+y)
+-- foldr (\a b -> b++a:[] ) [] [1..5]
+
 
 eval :: Expr '[] a -> a
 eval (I i)       = i
@@ -93,3 +104,51 @@ instance Num (Expr vs Int) where
     abs = O1 Abs
     signum = O1 Abs
     fromInteger = I . fromInteger
+
+data ExprW :: * where
+    EI :: forall vs. ((Expr vs Int) -> ExprW)
+    EB :: forall vs. ((Expr vs Bool) -> ExprW)
+    EL :: forall vs a. ((Expr vs [a]) -> ExprW)
+
+deriving instance Show (ExprW)
+
+--Rando Class
+class Rando a where
+    rando :: MonadRandom m => Int -> m a
+
+instance Rando (Expr vs Bool) where
+    rando 1 = B <$> getRandom
+    rando d = do
+      c <- getRandomR (0 , 1 :: Int)
+      case c of
+        0 -> B  <$> getRandom
+        1 -> O2 LEquals <$> rando (d - 1) <*> rando (d - 1)
+
+instance Rando (Expr vs Int) where
+    rando 1 = I <$> getRandom
+    rando d = do
+      c <- getRandomR (0, 3 :: Int)
+      case c of
+        0 -> I       <$> getRandom
+        1 -> O2 Plus    <$> rando (d - 1) <*> rando (d - 1)
+        2 -> O2 Times   <$> rando (d - 1) <*> rando (d - 1)
+        3 -> O2 Minus   <$> rando (d - 1) <*> rando (d - 1)
+{-
+instance Rando (Expr vs [a]) where
+    rando 1 = do
+      n <- getRandomR (0,2)
+      List <$> replicateM n (rando 1) -}
+
+instance Rando ExprW where
+    rando d = do
+      c <- getRandomR (0,1 :: Int)
+      case c of
+        0 -> EI <$> rando d
+        1 -> EB <$> rando d
+--        2 -> EL <$> rando d
+
+initialize :: MonadRandom m => m ExprW
+initialize = rando 8
+
+main2 :: IO ()
+main2 = print =<< evalRandIO initialize
