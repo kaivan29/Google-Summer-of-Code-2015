@@ -13,6 +13,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 
+import Data.Generics
 import Control.Monad.Random
 import Control.Monad
 import Control.Monad.State
@@ -106,49 +107,115 @@ instance Num (Expr vs Int) where
     fromInteger = I . fromInteger
 
 data ExprW :: * where
-    EI :: forall vs. ((Expr vs Int) -> ExprW)
-    EB :: forall vs. ((Expr vs Bool) -> ExprW)
-    EL :: forall vs a. ((Expr vs [a]) -> ExprW)
+    EB :: (Expr (Bool ': vs) Bool) -> ExprW
+    EI :: (Expr (Int ': vs) Int) -> ExprW
+    EL :: (Expr vs [a] -> ExprW)
 
-deriving instance Show (ExprW)
+--deriving instance Show (ExprW)
 
---Rando Class
 class Rando a where
     rando :: MonadRandom m => Int -> m a
 
-instance Rando (Expr vs Bool) where
-    rando 1 = B <$> getRandom
+instance Rando (Expr (Bool ': vs) Bool) where
+    rando 1 = return (V IZ)
     rando d = do
-      c <- getRandomR (0 , 1 :: Int)
+      c <- getRandomR (0 , 2 :: Int)
       case c of
-        0 -> B  <$> getRandom
-        1 -> O2 LEquals <$> rando (d - 1) <*> rando (d - 1)
+        0 -> return (V IZ)
+        1 -> O2 And <$> rando (d - 1) <*> rando (d - 1)
+        2 -> O2 Or <$> rando (d - 1) <*> rando (d - 1)
+--        3 -> O2 LEquals <$> rando (d - 1) <*> rando (d - 1)
 
-instance Rando (Expr vs Int) where
-    rando 1 = I <$> getRandom
+instance Rando (Expr (Int ': vs) Int) where
+    rando 1 = return (V IZ)
     rando d = do
-      c <- getRandomR (0, 3 :: Int)
+      c <- getRandomR (0, 6 :: Int)
       case c of
-        0 -> I       <$> getRandom
+        0 -> return (V IZ)
         1 -> O2 Plus    <$> rando (d - 1) <*> rando (d - 1)
         2 -> O2 Times   <$> rando (d - 1) <*> rando (d - 1)
         3 -> O2 Minus   <$> rando (d - 1) <*> rando (d - 1)
-{-
-instance Rando (Expr vs [a]) where
-    rando 1 = do
-      n <- getRandomR (0,2)
-      List <$> replicateM n (rando 1) -}
 
 instance Rando ExprW where
     rando d = do
-      c <- getRandomR (0,1 :: Int)
+      c <- getRandomR (0,2 :: Int)
       case c of
         0 -> EI <$> rando d
         1 -> EB <$> rando d
---        2 -> EL <$> rando d
+
+deriving instance Show (ExprW)
 
 initialize :: MonadRandom m => m ExprW
 initialize = rando 8
 
 main2 :: IO ()
 main2 = print =<< evalRandIO initialize
+
+--Attempt at Mutation-----------------------------------------------------------------------------------
+
+nodeMapM :: Monad m => (e -> m e) -> e -> m e
+nodeMapM f = gmapM (mkM f)
+-----------------------------------------------------------------------------
+-- Control parameters
+
+-- | Standardized fitness.
+type Fitness e = e -> Double
+
+-- | A function to mutate a chosen expression node.
+type Mutate m e = e -> m e
+
+-- | Default mutation. 
+defaultMutation :: (GenProg m e) => EvolParams m e -> Mutate m e
+defaultMutation p = const $ generateGrownExpr (iDepth p)
+
+
+-- | Parameters governing the evolution.
+-- Default evolution parameters
+data EvolParams m e = EvolParams {
+  popSize   :: Int,
+  iDepth    :: Int,
+  cDepth    :: Int,
+  cProb     :: Double,
+  ciProb    :: Double,
+  mProb     :: Double,
+  miProb    :: Double,
+  fitness   :: Fitness e,
+  mutate    :: Mutate m e,
+  elitists  :: Int}
+
+defaultEvolParams = EvolParams
+  { popSize   = 500
+  , iDepth    = 6
+  , cDepth    = 17
+  , cProb     = 0.9
+  , ciProb    = 0.9
+  , mProb     = 0.0
+  , miProb    = 0.1
+--  , terminate = tGeneration 50
+  , fitness   = error "GenProg.defaultEvolParams: fitness function is undefined"
+  , mutate    = const $ generateGrownExpr (iDepth defaultEvolParams)
+  , elitists  = 0 }
+  
+---------------------------------------------------------------------------------
+
+
+-- | A typeclass defining a genetic program interface.
+class ((Expr vs a), MonadRandom m) => GenProg m a | a -> m where
+  -- | Generates a random terminal @T@.
+  terminal :: m a
+  -- | Generates a random nonterminal
+  nonterminal :: m a
+
+-- Expressions
+
+generateExpr :: (GenProg m e) => m e -> Int -> m e
+generateExpr g d
+  | d < 1     = error "GenProg.generateExpr: Invalid expression depth"
+  | otherwise = nonterminal >>= step (d - 1)
+  where step 0 _ = terminal
+        step d e = nodeMapM (const g >=> step (d - 1)) e
+
+generateGrownExpr :: (GenProg m e) => Int -> m e
+generateGrownExpr d = do
+  t <- getRandom
+  generateExpr (if t then terminal else nonterminal) d
