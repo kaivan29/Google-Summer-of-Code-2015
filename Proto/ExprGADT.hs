@@ -13,27 +13,36 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 
-import Data.Generics
-import Control.Monad.Random
+import Control.Arrow
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.Random
+import Control.Monad.Trans.State
+import Data.Foldable
+import Data.IntMap.Strict           (IntMap)
+import Data.List
+import Data.Maybe
+import Data.Proxy
+import GHC.TypeLits
+import Text.Show
+import qualified Data.IntMap.Strict as IM
 
 data Indexor :: [k] -> k -> * where
     IZ :: Indexor (k ': ks) k
-    IS :: Indexor (k ': ks) k -> Indexor (j ': k ': ks) k
+    IS :: Indexor ks k -> Indexor (j ': ks) k
+
 
 data Expr :: [*] -> * -> * where
     I      :: Int                           -> Expr vs Int
     B      :: Bool                          -> Expr vs Bool
     V      :: Indexor vs a                  -> Expr vs a
     O1     :: Op1 a -> Expr vs a -> Expr vs a
-    O2     :: Op2 a b -> Expr vs a -> Expr vs a -> Expr vs b
-    (:$)   :: Expr (a ': vs) b -> Expr vs a -> Expr vs b
-    List   :: [Expr vs a] -> Expr vs [a]
+    O2     :: Show a => Op2 a b -> Expr vs a -> Expr vs a -> Expr vs b
+    (:$)   :: Show a => Expr (a ': vs) b -> Expr vs a -> Expr vs b
+    List   :: Show a => [Expr vs a] -> Expr vs [a]
     Const  :: Expr vs a -> Expr (b ': vs) a
-    Foldr  :: Expr (a ': b ': vs) b -> Expr vs b -> Expr vs [a] -> Expr vs b
+    Foldr  :: Show a => Expr (a ': b ': vs) b -> Expr vs b -> Expr vs [a] -> Expr vs b
 
-deriving instance Show (Expr vs a)
+infixr 1 :$
 
 data Op1 :: * -> * where
     Abs :: Op1 Int
@@ -48,18 +57,37 @@ data Op2 :: * -> * -> * where
     And    :: Op2 Bool Bool
     Or    :: Op2 Bool Bool
 
+deriving instance Show (Indexor ks k)
 deriving instance Show (Op1 a)
 deriving instance Show (Op2 a b)
+deriving instance Show a => Show (Expr vs a)
 
-deriving instance Show (Indexor ks k)
--- deriving instance Show a => Show (Expr vs a)
+-- tester :: Rand StdGen (Expr '[Int, Int, Int] Int)
+tester :: MonadRandom m => m (Expr '[] Int)
+tester = rando 5
+
+tester2 :: MonadRandom m => m(Expr '[] Bool)
+tester2 = rando 5
+
+tester3 :: MonadRandom m => m(Expr '[] [Int])
+tester3 = rando 5
+
+tester4 :: MonadRandom m => m(Expr '[] [Bool])
+tester4 = rando 5
 
 main :: IO ()
-main = print . eval $ Foldr (V IZ + V (IS IZ)) (I 0) (List [I 1, I 2, I 3]) -- (\x -> \y -> x+y)
--- foldr (\a b -> b++a:[] ) [] [1..5]
+-- main = print . eval $ ((V IZ - V (IS IZ)) :$ I 5) :$ I 2
+-- main = print . eval $ List [I 1, I 2]
+-- main = print . eval $ (V IZ + V (IS IZ)) :$ I 4 :$ I 5
+-- main = print . eval $ Foldr (V IZ + V (IS IZ)) (I 0) (List [I 1, I 2, I 3])
+-- main = print =<< evalRandIO tester
+main = do
+    e <- tester3
+    print e
+    putStrLn . showPretty $ e
+    print $ eval e
 
-
-eval :: Expr '[] a -> a
+eval :: Show a => Expr '[] a -> a
 eval (I i)       = i
 eval (B b)       = b
 eval (V v)       = error $ "Unexpected unbound variable " ++ show v ++ "...should be impossible really."
@@ -106,116 +134,204 @@ instance Num (Expr vs Int) where
     signum = O1 Abs
     fromInteger = I . fromInteger
 
-data ExprW :: * where
-    EB :: (Expr (Bool ': vs) Bool) -> ExprW
-    EI :: (Expr (Int ': vs) Int) -> ExprW
-    EL :: (Expr vs [a] -> ExprW)
-
---deriving instance Show (ExprW)
-
 class Rando a where
     rando :: MonadRandom m => Int -> m a
 
-instance Rando (Expr (Bool ': vs) Bool) where
-    rando 1 = return (V IZ)
+instance Rando (Expr '[] Int) where
+    rando 1 = I <$> getRandomR (-10,10)
     rando d = do
-      c <- getRandomR (0 , 2 :: Int)
+      c <- getRandomR (0, 8 :: Int)
       case c of
-        0 -> return (V IZ)
+        0 -> I <$> getRandomR (-10, 10)
+        1 -> O1 Abs <$> rando (d - 1)
+        2 -> O2 Plus <$> rando (d - 1) <*> rando (d - 1)
+        3 -> O2 Times <$> rando (d - 1) <*> rando (d - 1)
+        4 -> O2 Times <$> rando (d - 1) <*> rando (d - 1)
+        _ -> do
+          f <- rando (d - 1)
+          x <- rando (d - 1)
+          return $ f :$ (x :: Expr '[] Int)
+
+instance (Rando (Expr vs Int), Rando (Indexor (Int ': vs) Int)) => Rando (Expr (Int ': vs) Int) where
+    rando 1 = V <$> rando 1
+    rando d = do
+      c <- getRandomR (0, 8 :: Int)
+      case c of
+        0 -> V <$> rando d
+        1 -> O1 Abs <$> rando (d - 1)
+        2 -> O2 Plus <$> rando (d - 1) <*> rando (d - 1)
+        3 -> O2 Times <$> rando (d - 1) <*> rando (d - 1)
+        4 -> O2 Times <$> rando (d - 1) <*> rando (d - 1)
+        _ -> do
+          f <- rando (d - 1)
+          x <- rando (d - 1)
+          return $ f :$ (x :: Expr (Int ': vs) Int)
+
+instance Rando (Expr '[] Bool) where
+    rando 1 = B <$> getRandom
+    rando d = do
+      c <- getRandomR (0, 8 :: Int)
+      case c of
+        0 -> B <$> getRandom
         1 -> O2 And <$> rando (d - 1) <*> rando (d - 1)
         2 -> O2 Or <$> rando (d - 1) <*> rando (d - 1)
---        3 -> O2 LEquals <$> rando (d - 1) <*> rando (d - 1)
+        3 -> O2 LEquals <$> rando (d - 1) <*> rando (d - 1)
+        _ -> do
+          f <- rando (d - 1)
+          x <- rando (d - 1)
+          return $ f :$ (x :: Expr '[] Bool)
 
-instance Rando (Expr (Int ': vs) Int) where
-    rando 1 = return (V IZ)
+instance (Rando (Expr vs Bool), Rando (Indexor (Bool ': vs) Bool)) => Rando (Expr (Bool ': vs) Bool) where
+    rando 1 = V <$> rando 1
     rando d = do
-      c <- getRandomR (0, 6 :: Int)
+      c <- getRandomR (0, 8 :: Int)
       case c of
-        0 -> return (V IZ)
-        1 -> O2 Plus    <$> rando (d - 1) <*> rando (d - 1)
-        2 -> O2 Times   <$> rando (d - 1) <*> rando (d - 1)
-        3 -> O2 Minus   <$> rando (d - 1) <*> rando (d - 1)
+        0 -> V <$> rando d
+        1 -> O2 And <$> rando (d - 1) <*> rando (d - 1)
+        2 -> O2 Or <$> rando (d - 1) <*> rando (d - 1)
+        _ -> do
+          f <- rando (d - 1)
+          x <- rando (d - 1)
+          return $ f :$ (x :: Expr (Bool ': vs) Bool)
+
+instance (Show a, Rando (Expr vs a)) => Rando (Expr vs [a]) where
+    rando 1 = do
+      n <- getRandomR (0,2)
+      List <$> replicateM n (rando 1)
+    rando d = do
+      n <- getRandomR (0,2)
+      List <$> replicateM n (rando (d - 1))
+
+instance {-# OVERLAPPING #-} Rando (Indexor (v ': '[]) v) where
+    rando _ = return IZ
+
+instance {-# OVERLAPPING #-} Rando (Indexor vs u) => Rando (Indexor (v ': vs) u) where
+    rando d = IS <$> rando d
+
+instance {-# OVERLAPPING #-} (Rando (Indexor (u ': vs) v)) => Rando (Indexor (v ': u ': vs) v) where
+    rando d = do
+      c <- getRandomR (0, 2 :: Int)     -- can be made a bit smarter
+      case c of
+        0 -> return IZ
+        _ -> IS <$> rando d
+
+data ExprW :: * where
+    EI :: (Expr '[] Int) -> ExprW
+    EB :: (Expr '[] Bool) -> ExprW
+    IL :: (Expr '[] [Int]) -> ExprW
+    BL :: (Expr '[] [Bool]) -> ExprW
 
 instance Rando ExprW where
     rando d = do
-      c <- getRandomR (0,2 :: Int)
+      c <- getRandomR (0,3 :: Int)
       case c of
         0 -> EI <$> rando d
         1 -> EB <$> rando d
+        2 -> IL <$> rando d
+        3 -> BL <$> rando d
 
-deriving instance Show (ExprW)
+-- | Pretty printing
 
-initialize :: MonadRandom m => m ExprW
-initialize = rando 8
+indexor :: Indexor ks k -> Int
+indexor IZ = 0
+indexor (IS x) = 1 + indexor x
 
-main2 :: IO ()
-main2 = print =<< evalRandIO initialize
+showPretty :: Expr vs x -> String
+showPretty e = let (res, (os, _)) = runState (showExpr e [] <* fillOs) (IM.empty, varNames)
+               in  if IM.null os
+                     then res 0 ""
+                     else showString ("\\" ++ unwords (IM.elems os) ++ " -> ")
+                        . res 0
+                        $ ""
+  where
+    showExpr :: Expr vs x -> [String] -> State (IntMap String, [String]) (Int -> ShowS)
+    showExpr e vs = case e of
+        -- I i -> return $ \p -> showParen (i < 0) $ showsPrec p i
+        I i -> return $ flip showsPrec i
+        B b -> return $ flip showsPrec b
+        V v -> let i = indexor v
+                   o = i - length vs
+               in  if  o >= 0
+                     then do
+                       os <- lookupOs o
+                       case os of
+                         Just x  -> return $ \_ -> showString x
+                         Nothing -> do
+                           x <- pop
+                           addO o x
+                           return $ \_ -> showString x
+                     else return $ \_ -> showString (vs !! i)
+        O1 op e1 -> do
+            e1' <- showExpr e1 vs
+            return $ showAp (const $ showString (op1 op)) e1'
+        O2 op e1 e2 -> do
+            e1' <- showExpr e1 vs
+            e2' <- showExpr e2 vs
+            let (opFix, opPrec, opName) = op2 op
+            return $ showOp opFix opPrec opName e1' e2'
+        ef :$ ex -> do
+            v <- pop
+            ef' <- showExpr ef (v : vs)
+            ex' <- showExpr ex vs
+            let ef'' = showParen True
+                         $ showString ("\\" ++ v ++ " -> ")
+                         . ef' 0
+            return $ showOp InfixL 10 " " (const ef'')
+                                          ex'
 
---Attempt at Mutation-----------------------------------------------------------------------------------
+        List exs -> do
+            exs' <- mapM (`showExpr` vs) exs
+            return . const $ showListWith ($ 0) exs'
+        Const e1 -> do
+            e1' <- showExpr e1 vs
+            return $ showAp (const $ showString "const") e1'
+        Foldr ef ez exs -> do
+            x <- pop
+            y <- pop
+            ef' <- showExpr ef (x : y : vs)
+            ez' <- showExpr ez vs
+            exs' <- showExpr exs vs
+            let ef'' = showParen True
+                         $ showString ("\\" ++ x ++ " " ++ y ++ " -> ")
+                         . ef' 0
+            return $ flip showAp exs'
+                   . flip showAp ez'
+                   . flip showAp (const ef'')
+                   $ (\_ -> showString "foldr")
+    showOp :: Fixity -> Int -> String -> (Int -> ShowS) -> (Int -> ShowS) -> Int -> ShowS
+    showOp fixity prec op e1 e2 p = showParen (p > prec)
+                                      $ e1 (if fixity == InfixL then prec else prec + 1)
+                                      . showString op
+                                      . e2 (if fixity == InfixR then prec else prec + 1)
+    showAp :: (Int -> ShowS) -> (Int -> ShowS) -> Int -> ShowS
+    showAp = showOp InfixL 10 " "
+    pop = state $ \(os, vn:vns) -> (vn, (os, vns))
+    lookupOs o = gets  $ IM.lookup o . fst
+    addO o vn  = modify $ first (IM.insert o vn)
+    fillOs :: State (IntMap String, [String]) ()
+    fillOs = do
+        os <- gets fst
+        unless (IM.null os) $ do
+          let maxKey = fst . IM.findMin $ os
+          forM_ [0..maxKey] $ \k -> do
+            hasK <- gets $ IM.member k . fst
+            unless hasK $ do
+              vn <- pop
+              addO k vn
+    varNames :: [String]
+    varNames = [ v : if n == 0 then "" else show n
+               | n <- [0..]
+               , v <- "xyzhijklmnpqrstuvw"]
+    op1 :: Op1 a -> String
+    op1 Abs    = "abs"
+    op1 Signum = "signum"
+    op1 Not    = "not"
+    op2 :: Op2 a b -> (Fixity, Int, String)
+    op2 Plus    = (InfixL, 6, " + ")
+    op2 Times   = (InfixL, 7, " * ")
+    op2 Minus   = (InfixL, 6, " - ")
+    op2 LEquals = (Infix, 4, " <= ")
+    op2 And     = (InfixR, 3, " && ")
+    op2 Or      = (InfixR, 2, " || ")
 
-nodeMapM :: Monad m => (e -> m e) -> e -> m e
-nodeMapM f = gmapM (mkM f)
------------------------------------------------------------------------------
--- Control parameters
-
--- | Standardized fitness.
-type Fitness e = e -> Double
-
--- | A function to mutate a chosen expression node.
-type Mutate m e = e -> m e
-
--- | Default mutation. 
-defaultMutation :: (GenProg m e) => EvolParams m e -> Mutate m e
-defaultMutation p = const $ generateGrownExpr (iDepth p)
-
-
--- | Parameters governing the evolution.
--- Default evolution parameters
-data EvolParams m e = EvolParams {
-  popSize   :: Int,
-  iDepth    :: Int,
-  cDepth    :: Int,
-  cProb     :: Double,
-  ciProb    :: Double,
-  mProb     :: Double,
-  miProb    :: Double,
-  fitness   :: Fitness e,
-  mutate    :: Mutate m e,
-  elitists  :: Int}
-
-defaultEvolParams = EvolParams
-  { popSize   = 500
-  , iDepth    = 6
-  , cDepth    = 17
-  , cProb     = 0.9
-  , ciProb    = 0.9
-  , mProb     = 0.0
-  , miProb    = 0.1
---  , terminate = tGeneration 50
-  , fitness   = error "GenProg.defaultEvolParams: fitness function is undefined"
-  , mutate    = const $ generateGrownExpr (iDepth defaultEvolParams)
-  , elitists  = 0 }
-  
----------------------------------------------------------------------------------
-
-
--- | A typeclass defining a genetic program interface.
-class ((Expr vs a), MonadRandom m) => GenProg m a | a -> m where
-  -- | Generates a random terminal @T@.
-  terminal :: m a
-  -- | Generates a random nonterminal
-  nonterminal :: m a
-
--- Expressions
-
-generateExpr :: (GenProg m e) => m e -> Int -> m e
-generateExpr g d
-  | d < 1     = error "GenProg.generateExpr: Invalid expression depth"
-  | otherwise = nonterminal >>= step (d - 1)
-  where step 0 _ = terminal
-        step d e = nodeMapM (const g >=> step (d - 1)) e
-
-generateGrownExpr :: (GenProg m e) => Int -> m e
-generateGrownExpr d = do
-  t <- getRandom
-  generateExpr (if t then terminal else nonterminal) d
+data Fixity = InfixL | InfixR | Infix deriving Eq
