@@ -1,3 +1,5 @@
+{- Existential approach to the generation of valid nodes for the tree that will evaluate expressions-}
+
 -- The following language extensions need to be enabled:
 -- DeriveDataTypeable, FlexibleInstances, MultiParamTypeClasses
 

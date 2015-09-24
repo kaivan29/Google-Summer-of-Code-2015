@@ -1,3 +1,5 @@
+{-Learning how to use GADT-}
+
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GADTs #-}

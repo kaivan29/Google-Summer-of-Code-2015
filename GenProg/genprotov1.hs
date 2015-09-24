@@ -1,3 +1,5 @@
+{-Experimentation with GenProg Library to generate the type of expressions we need-}
+
 {-# LANGUAGE DeriveDataTypeable, FlexibleInstances, FlexibleContexts, MultiParamTypeClasses #-}
 
 

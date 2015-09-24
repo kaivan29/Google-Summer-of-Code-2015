@@ -1,3 +1,5 @@
+{- Trying to understand how existential works-}
+
 -- The following language extensions need to be enabled:
 -- DeriveDataTypeable, FlexibleInstances, MultiParamTypeClasses
 
@@ -45,3 +47,10 @@ instance GenProg (Rand StdGen) (Expr a) where
     [liftM2 Plus terminal terminal,
      liftM2 Times terminal terminal,
 	 liftM2 Eq terminal terminal] !! r
+
+
+{-
+Conclusion: GADT's are a better approach than Existential.
+Also, I learned that while working with existential, it is 
+not the best option and will not be really useful many times because once we generalize and wrap a data type in class, we can not get this type back.
+-}
