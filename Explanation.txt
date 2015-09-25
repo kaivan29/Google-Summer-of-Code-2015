@@ -5,36 +5,36 @@ Genetic programming is an evolutionary technique, inspired by biological evoluti
 ##GenProg
 Experimenting with Genprog library to create random trees and learn its behavior.
 
-###Installation:
+###Installation
 To make load GenProg Library one needs to have 'ghci version 7.6.3 or 7.10.*'. It will give you a lot of problems otherwise. For me Cabal 1.22 and ghc-7.10 combination worked. Genprog installs perfectly fine. A change is needed to be made to install it though, Steps:
-<br>1. cabal get genprog-0.1.0.2. Unzip the file.
-<br>2. Open genprog.cabal in text editor and set base to 4.8.* which is 4.6.* originally.
-<br>3. run cabal install in the folder.
-<br>4. set the package in ghci. Works like a charm.
+1. cabal get genprog-0.1.0.2. Unzip the file.
+2. Open genprog.cabal in text editor and set base to 4.8.* which is 4.6.* originally.
+3. run cabal install in the folder.
+4. set the package in ghci. Works like a charm.
 
-###Experimentation:
+###Experimentation
 After experimenting with genprog a bit, we made a proper eval function and test it on handmade operation trees. If everything looked good, we would have a very clear idea of what we want genprog to be able to output, mutate and crossover. But, when generating expressions we were not able to have foldr expressions as nodes. GenProg just pays attention to whether it's adding a terminal or nonterminal, not which types they are. Likewise, in the crossover, it just looks at whether the nodes are internal or external (nonterminal or terminal). So we could have decided to meddle with GenProg library or start from scratch.
 Setback since, we had not expected to change anything in GenProg.
 
-###Conclusion:
+###Conclusion
 We have decided to code Genetic Programming from the scratch and we are going to try two ways to do it:
 1. Existential Prototypes.
 2. GADTs
 
-##Existential Approach
-Existential types, or 'existentials' for short, are a way of 'squashing' a group of types into one, single type. The existential quantification in datatypes (and newtypes) declarations is a powerful mechanism that can be used to incapsulate information or even provide stronger type guarantees.
+##Proto
+Experimenting with existential typeclasses and GADTs so that we can make valid trees.
 
-###Experimentation:
+###Experimentation
 After experimenting it was found that dealing with existentials is weird in a way. The thing about existentials is that one has to work really hard to get something usable and useful but in the end one gets something that could be done exactly the same with just normal data types. Typically people try to use existentials to port over design intuitions they've learned from other languages like object oriented programming but in the end it leads to complex and hard-to-reason about code with a lot of extra scaffolding one has to write him/herself...
 Also, https://lukepalmer.wordpress.com/2010/01/24/haskell-antipattern-existential-typeclass/ 
 
-###Conclusion:
+###Conclusion
 We turn to GADTs
 
-##GADT_Approach - ExprGADT.hs
-Generalised Algebraic Datatypes(GADT) are datatypes for which a constructor has a non standard type. It allows us to give the type signatures of constructors explicitly. After all the experimentation, GADT is the correct approach to build valid trees. Huff.
+#ExprGADT.hs
+After all the experimentation, GADT is the correct approach to build valid trees. Huff.
 
-###Experimentation:
+###Experimentation
 With such stongly typed GP it is not possible to build an AST with unbound variables. Expr now carries a type level list of bound variables from shallowest to deepest.
 `Expr [Int] a` is a lambda expression that is expecting Expr vs Int, and is an Expr [] a when applied.
 
@@ -79,7 +79,7 @@ Example:
 V IZ is waiting for a value which is a hole and (:$) lets you fill the hole. So you can do
 ((V IZ - V (IS IZ) :$ I 5) :$ I 2 is like ((\x y -> x - y) $ 5) $ 2 i.e 5 - 2. (:$) does the hole-filling-in just like ($) in normal Haskell.
 
-###Conclusion:
+###Conclusion
 V gives you a lambda like construct which we can use to evaluate fold expressions now. Foldr (V IZ + V (IS IZ)) (I 0) (List [1,2,3]) is foldr (\x y -> x + y) 0 [1,2,3]. Generated Trees with Integer, Boolean and List nodes successfully.
 
 ##Things done:
