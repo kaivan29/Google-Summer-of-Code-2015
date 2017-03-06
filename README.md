@@ -1,4 +1,6 @@
 #Google Summer of Code 2015
+![GSOC](/image01.jpg "Step 1")
+
 Prototype versions of the Atomspace and MOSES deme implemented in Haskell.
 Genetic programming is an evolutionary technique, inspired by biological evolution, to evolve programs for solving specific problems. A genetic program is represented by a value of an algebraic datatype and associated with a custom-defined fitness value indicating the quality of the solution. Starting from a randomly generated initial population of genetic programs, the genetic operators of selection, crossover, and mutation are used to evolve programs of increasingly better quality.
 
@@ -84,6 +86,9 @@ V gives you a lambda like construct which we can use to evaluate fold expression
 
 ##Things done:
 Generation of valid of trees with random nodes i.e random generation of population.
+
+![Things done](/Capture1.png "Step 2")
+![Things done](/Capture2.png "Step 3")
 
 ##Things to be done:
 Crossover, mutation and fitness function.
