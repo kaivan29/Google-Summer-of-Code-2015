@@ -87,8 +87,8 @@ V gives you a lambda like construct which we can use to evaluate fold expression
 ##Things done:
 Generation of valid of trees with random nodes i.e random generation of population.
 
-![Things done](/Capture1.png "Step 2")
-![Things done](/Capture2.png "Step 3")
+![Things done](/Capture1.PNG "Step 2")
+![Things done](/Capture2.PNG "Step 3")
 
 ##Things to be done:
 Crossover, mutation and fitness function.
